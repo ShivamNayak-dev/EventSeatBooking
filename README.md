@@ -2,7 +2,8 @@
 
 A full-stack event ticketing system where multiple users can browse a seat
 map and book seats in real time — without ever double-booking the same
-seat, even under concurrent requests.
+seat, even under concurrent requests. Includes role-based access control:
+regular users book seats, admins manage the event catalog.
 
 Built end-to-end in **Python (FastAPI) + React/TypeScript**, with a focus
 on solving the concurrency-control problem correctly rather than just the
@@ -33,6 +34,17 @@ background Redis keyspace-notification listener also detects when a hold
 **expires naturally** (user walks away) and broadcasts the seat becoming
 available again.
 
+## Roles
+
+- **Regular user:** register, log in, browse events, lock and book seats.
+- **Admin:** everything a regular user can do, plus create events (the
+  full seat grid is auto-generated based on rows/seats-per-row), update
+  event details, and delete events. Admin status isn't self-service by
+  design — there's no signup checkbox for it — it's granted via a
+  one-off script (`app/promote_admin.py`) so it stays an intentional,
+  backend-controlled action rather than something any user can flip on
+  themselves.
+
 ## Tech stack
 
 **Backend:** FastAPI, PostgreSQL (SQLAlchemy ORM), Redis, JWT auth (via
@@ -50,15 +62,16 @@ Axios.
 ├── backend/
 │   ├── app/
 │   │   ├── main.py            # app entrypoint, CORS, startup, lock-expiry listener
-│   │   ├── models.py          # SQLAlchemy models (User, Event, Seat, Booking)
+│   │   ├── models.py          # SQLAlchemy models (User w/ is_admin, Event, Seat, Booking)
 │   │   ├── schemas.py         # Pydantic request/response schemas
-│   │   ├── auth.py            # JWT + bcrypt password hashing
+│   │   ├── auth.py            # JWT + bcrypt hashing + admin-check dependency
 │   │   ├── redis_client.py    # Redis connection + lock key helper
 │   │   ├── websocket_manager.py
 │   │   ├── seed.py            # demo data seeder
+│   │   ├── promote_admin.py   # one-off script to grant a user admin rights
 │   │   └── routers/
 │   │       ├── auth.py        # /auth/register, /auth/login, /auth/me
-│   │       ├── events.py      # /events
+│   │       ├── events.py      # /events (list/get public; create/update/delete admin-only)
 │   │       ├── seats.py       # /events/{id}/seats, /seats/{id}/lock, /ws/events/{id}
 │   │       └── bookings.py    # /bookings
 │   ├── requirements.txt
@@ -66,7 +79,7 @@ Axios.
 ├── frontend/
 │   └── src/
 │       ├── pages/SeatMap.tsx  # the core seat-selection + booking UI
-│       ├── pages/Events.tsx
+│       ├── pages/Events.tsx   # event list + admin-only create/delete UI
 │       ├── context/AuthContext.tsx
 │       ├── hooks/useWebSocket.ts
 │       └── ...
@@ -107,16 +120,43 @@ npm run dev
 ```
 Visit `http://localhost:5173`.
 
+### Making yourself an admin
+
+Sign up normally through the frontend first, then from the `backend`
+folder (with your virtual environment active):
+
+```bash
+python -m app.promote_admin your-email@example.com
+```
+
+Log out and back in on the frontend so your session picks up the updated
+role — you'll then see a **"+ Create Event"** button and **"Delete"**
+controls on the Events page that regular users don't see.
+
 ## API overview
 
-| Method | Endpoint                | Description                          |
-|--------|--------------------------|---------------------------------------|
-| POST   | `/auth/register`        | Create account                        |
-| POST   | `/auth/login`            | Get JWT access token                  |
-| GET    | `/events`                | List events                           |
-| GET    | `/events/{id}/seats`     | Seat map with live status             |
-| POST   | `/seats/{id}/lock`       | Acquire a 5-min hold on a seat        |
-| DELETE | `/seats/{id}/lock`       | Release your hold                     |
-| POST   | `/bookings`              | Confirm booking (requires active hold)|
-| WS     | `/ws/events/{id}`        | Live seat status broadcast            |
-| GET    | `/health`                | Health check                          |
+| Method | Endpoint                | Description                                  | Access        |
+|--------|--------------------------|-----------------------------------------------|---------------|
+| POST   | `/auth/register`        | Create account                                | Public        |
+| POST   | `/auth/login`            | Get JWT access token                          | Public        |
+| GET    | `/auth/me`               | Get current user (includes `is_admin`)        | Authenticated |
+| GET    | `/events`                | List events                                   | Public        |
+| GET    | `/events/{id}`           | Get one event                                 | Public        |
+| POST   | `/events`                | Create event (auto-generates its seat grid)   | Admin only    |
+| PUT    | `/events/{id}`           | Update event details                          | Admin only    |
+| DELETE | `/events/{id}`           | Delete event (cascades to its seats/bookings) | Admin only    |
+| GET    | `/events/{id}/seats`     | Seat map with live status                     | Public        |
+| POST   | `/seats/{id}/lock`       | Acquire a 5-min hold on a seat                | Authenticated |
+| DELETE | `/seats/{id}/lock`       | Release your hold                             | Authenticated |
+| POST   | `/bookings`              | Confirm booking (requires active hold)        | Authenticated |
+| GET    | `/bookings/me`           | List your own bookings                        | Authenticated |
+| WS     | `/ws/events/{id}`        | Live seat status broadcast                    | Public        |
+| GET    | `/health`                | Health check                                  | Public        |
+
+## What I'd add next
+
+- Automated tests (pytest for the lock/booking race conditions specifically)
+- Payment integration (Stripe, as in my other projects)
+- Alembic migrations instead of manual `ALTER TABLE` / `create_all`
+- Rate limiting on the lock endpoint to prevent hold-spam
+- A dedicated "My Bookings" page on the frontend

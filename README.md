@@ -4,10 +4,9 @@ A full-stack event ticketing system where multiple users can browse a seat
 map and book seats in real time — without ever double-booking the same
 seat, even under concurrent requests.
 
-Built as a from-scratch reimplementation of a seat-locking problem I'd
-already solved once in Java/Spring Boot (TicketFlow), here done end-to-end
-in **Python (FastAPI) + React/TypeScript**, to demonstrate the same
-concurrency-control thinking in a different stack.
+Built end-to-end in **Python (FastAPI) + React/TypeScript**, with a focus
+on solving the concurrency-control problem correctly rather than just the
+CRUD surface.
 
 ## The core problem this solves
 
@@ -120,10 +119,4 @@ Visit `http://localhost:5173`.
 | DELETE | `/seats/{id}/lock`       | Release your hold                     |
 | POST   | `/bookings`              | Confirm booking (requires active hold)|
 | WS     | `/ws/events/{id}`        | Live seat status broadcast            |
-
-## What I'd add next
-
-- Automated tests (pytest for the lock/booking race conditions specifically)
-- Payment integration (Stripe, as in my other projects)
-- Alembic migrations instead of `create_all` on startup
-- Rate limiting on the lock endpoint to prevent hold-spam
+| GET    | `/health`                | Health check                          |

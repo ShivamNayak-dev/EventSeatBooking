@@ -20,6 +20,7 @@ class UserOut(BaseModel):
     id: int
     name: str
     email: EmailStr
+    is_admin: bool
 
 
 class Token(BaseModel):
@@ -53,6 +54,21 @@ class SeatOut(BaseModel):
 class SeatMapOut(BaseModel):
     event: EventOut
     seats: list[SeatOut]
+
+class EventCreate(BaseModel):
+    name: str
+    venue: str
+    event_time: datetime.datetime
+    rows: int = 6
+    cols: int = 8
+    price: Decimal = Decimal("0")
+
+
+class EventUpdate(BaseModel):
+    name: str | None = None
+    venue: str | None = None
+    event_time: datetime.datetime | None = None
+    price: Decimal | None = None
 
 
 # ---------- Locking ----------

@@ -1,7 +1,7 @@
 import datetime
 
 from sqlalchemy import (
-    Column, Integer, String, ForeignKey, DateTime, Numeric, UniqueConstraint
+    Column, Integer, String, ForeignKey, DateTime, Numeric, UniqueConstraint, Boolean
 )
 from sqlalchemy.orm import relationship
 
@@ -15,6 +15,7 @@ class User(Base):
     name = Column(String(120), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    is_admin = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     bookings = relationship("Booking", back_populates="user")
